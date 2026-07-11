@@ -21,3 +21,12 @@ body,
 body {
   background: #09090b;
 }
+
+.product-slider {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.product-slider::-webkit-scrollbar {
+  display: none;
+}

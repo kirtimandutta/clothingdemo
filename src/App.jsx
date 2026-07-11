@@ -3,6 +3,7 @@ import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { ArrowUpRight, Menu } from 'lucide-react'
 import { Component, Suspense, useCallback, useLayoutEffect, useRef, useState } from 'react'
+import ProductSlider from './components/ProductSlider'
 import WardrobeScene, { Loader } from './components/WardrobeScene'
 
 gsap.registerPlugin(ScrollTrigger)
@@ -101,7 +102,7 @@ function App() {
           <div className="hidden items-center gap-8 text-xs uppercase tracking-[0.3em] text-zinc-400 md:flex">
             <a href="#vision" className="transition hover:text-white">Vision</a>
             <a href="#material" className="transition hover:text-white">Material</a>
-            <a href="#shop" className="transition hover:text-white">Shop</a>
+            <a href="#collection" className="transition hover:text-white">Shop</a>
           </div>
           <button type="button" className="rounded-full border border-white/20 p-2 text-zinc-200 md:hidden">
             <Menu size={16} />
@@ -117,8 +118,8 @@ function App() {
                 camera={{ position: [0, 0.45, 4.1], fov: 34, near: 0.1, far: 100 }}
                 shadows
                 dpr={[1, 2]}
-                gl={{ alpha: true }}
-                style={{ background: 'transparent' }}
+                gl={{ alpha: false }}
+                style={{ background: '#000000' }}
               >
                 <Suspense fallback={<Loader />}>
                   <WardrobeScene onModelResolved={handleModelResolved} />
@@ -139,19 +140,19 @@ function App() {
                 Sculpted leather silhouettes with architectural lines and deep tonal contrasts.
                 Scroll to rotate the model and reveal every edge under studio light.
               </p>
-              <button
-                type="button"
+              <a
+                href="#collection"
                 className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/20 bg-white px-6 py-3 text-xs font-medium uppercase tracking-[0.24em] text-black transition hover:bg-zinc-200"
               >
                 Shop Now
                 <ArrowUpRight size={16} />
-              </button>
+              </a>
             </header>
           </div>
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-7xl gap-8 px-6 py-20 lg:grid-cols-3 lg:px-10">
+      <section className="mx-auto grid max-w-7xl gap-8 px-6 pb-8 pt-20 lg:grid-cols-3 lg:px-10">
         <article id="vision" className="space-y-5 rounded-2xl border border-white/10 bg-zinc-950 p-6">
           <p className="text-xs uppercase tracking-[0.38em] text-zinc-500">01 / Vision</p>
           <h2 className="text-2xl font-medium text-white">Quiet Luxury</h2>
@@ -177,6 +178,8 @@ function App() {
           </p>
         </article>
       </section>
+
+      <ProductSlider />
     </main>
   )
 }
