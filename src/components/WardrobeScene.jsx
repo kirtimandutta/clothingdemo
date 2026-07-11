@@ -1,7 +1,11 @@
-import { Environment, Float, Html } from '@react-three/drei'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Box3, Vector3 } from 'three'
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { Center, Environment, Float, Html, useGLTF, useTexture } from '@react-three/drei'
+import { useThree } from '@react-three/fiber'
+import { Suspense, useEffect, useMemo, useRef } from 'react'
+import { Bloom, EffectComposer } from '@react-three/postprocessing'
+import { Box3, DoubleSide, SRGBColorSpace, Vector3 } from 'three'
+
+const MODEL_PATH = '/leather_clothes.glb'
+const MODEL_TARGET_SIZE = 2.4
 
 function Loader() {
   return (
@@ -13,32 +17,70 @@ function Loader() {
   )
 }
 
-function ModelLoadError({ attemptedPaths }) {
+function BackgroundPlane() {
+  const texture = useTexture('/redbackground.jpg')
+  const { size, viewport } = useThree()
+
+  useEffect(() => {
+    if (!texture?.image) {
+      return
+    }
+
+    texture.colorSpace = SRGBColorSpace
+
+    const imageAspect = texture.image.width / texture.image.height
+    const planeAspect = viewport.width / viewport.height
+
+    if (planeAspect > imageAspect) {
+      texture.repeat.set(imageAspect / planeAspect, 1)
+      texture.offset.set((1 - texture.repeat.x) / 2, 0)
+    } else {
+      texture.repeat.set(1, planeAspect / imageAspect)
+      texture.offset.set(0, (1 - texture.repeat.y) / 2)
+    }
+
+    texture.needsUpdate = true
+  }, [texture, size, viewport])
+
+  const coverScale = useMemo(() => {
+    if (!texture?.image) {
+      return [viewport.width / 2, viewport.height / 2, 1]
+    }
+
+    const canvasAspect = viewport.width / viewport.height
+    const imageAspect = texture.image.width / texture.image.height
+
+    if (canvasAspect > imageAspect) {
+      return [viewport.width / 2, viewport.width / imageAspect / 2, 1]
+    }
+
+    return [viewport.height * imageAspect / 2, viewport.height / 2, 1]
+  }, [texture, viewport])
+
   return (
-    <Html center>
-      <div className="max-w-md rounded-xl border border-red-400/40 bg-black/80 p-4 text-left text-xs text-zinc-200">
-        <p className="mb-2 font-semibold uppercase tracking-[0.2em] text-red-300">Model not found</p>
-        <p className="mb-2">Place your GLB in `public` with one of these names:</p>
-        <ul className="space-y-1 text-zinc-300">
-          {attemptedPaths.map((path) => (
-            <li key={path}>{path}</li>
-          ))}
-        </ul>
-      </div>
-    </Html>
+    <mesh position={[0, 0, -1]} scale={coverScale} renderOrder={-100}>
+      <planeGeometry args={[2, 2]} />
+      <meshBasicMaterial
+        map={texture}
+        transparent
+        opacity={0.4}
+        depthWrite={false}
+        depthTest={false}
+        toneMapped={false}
+      />
+    </mesh>
   )
 }
 
 function LeatherModel() {
-  const attemptedPaths = ['/leather_clothes.glb', '/Clothes_6.glb', '/clothes_6.glb']
-  const [loadedScene, setLoadedScene] = useState(null)
-  const [loadFailed, setLoadFailed] = useState(false)
+  const { scene } = useGLTF(MODEL_PATH)
+
   const clonedScene = useMemo(() => {
-    if (!loadedScene) {
+    if (!scene) {
       return null
     }
 
-    const cloned = loadedScene.clone(true)
+    const cloned = scene.clone(true)
     const box = new Box3().setFromObject(cloned)
 
     if (!box.isEmpty()) {
@@ -49,45 +91,11 @@ function LeatherModel() {
       cloned.position.sub(center)
 
       const maxAxis = Math.max(size.x, size.y, size.z) || 1
-      const targetSize = 2.4
-      const normalizedScale = targetSize / maxAxis
-      cloned.scale.setScalar(normalizedScale)
+      cloned.scale.setScalar(MODEL_TARGET_SIZE / maxAxis)
     }
 
     return cloned
-  }, [loadedScene])
-
-  useEffect(() => {
-    let isMounted = true
-    const loader = new GLTFLoader()
-
-    const tryLoad = (index) => {
-      if (index >= attemptedPaths.length) {
-        if (isMounted) {
-          setLoadFailed(true)
-        }
-        return
-      }
-
-      loader.load(
-        attemptedPaths[index],
-        (gltf) => {
-          if (isMounted) {
-            setLoadedScene(gltf.scene)
-            setLoadFailed(false)
-          }
-        },
-        undefined,
-        () => tryLoad(index + 1),
-      )
-    }
-
-    tryLoad(0)
-
-    return () => {
-      isMounted = false
-    }
-  }, [])
+  }, [scene])
 
   useEffect(() => {
     if (!clonedScene) {
@@ -98,10 +106,10 @@ function LeatherModel() {
       if (node.isMesh) {
         node.castShadow = true
         node.receiveShadow = true
+        node.frustumCulled = false
         const materials = Array.isArray(node.material)
           ? node.material
           : [node.material].filter(Boolean)
-
         materials.forEach((material) => {
           if ('roughness' in material) {
             material.roughness = 0.48
@@ -112,35 +120,28 @@ function LeatherModel() {
           if ('envMapIntensity' in material) {
             material.envMapIntensity = 1.35
           }
+          if ('side' in material) {
+            material.side = DoubleSide
+          }
           material.needsUpdate = true
         })
       }
     })
-
   }, [clonedScene])
-
-  if (loadFailed) {
-    return (
-      <>
-        <ModelLoadError attemptedPaths={attemptedPaths} />
-        <mesh position={[0, -0.8, 0]}>
-          <boxGeometry args={[1.3, 1.8, 0.6]} />
-          <meshStandardMaterial color="#a58a68" roughness={0.55} metalness={0.2} />
-        </mesh>
-      </>
-    )
-  }
 
   if (!clonedScene) {
     return <Loader />
   }
 
   return (
-    <group position={[0, -0.55, 0]}>
+    <Center>
       <primitive object={clonedScene} />
-    </group>
+    </Center>
   )
 }
+
+useGLTF.preload(MODEL_PATH)
+useTexture.preload('/redbackground.jpg')
 
 export default function WardrobeScene({ onModelResolved }) {
   const animatedGroupRef = useRef(null)
@@ -152,6 +153,7 @@ export default function WardrobeScene({ onModelResolved }) {
 
   return (
     <>
+      <BackgroundPlane />
       <Environment preset="studio" />
       <ambientLight intensity={0.32} />
       <spotLight
@@ -164,15 +166,20 @@ export default function WardrobeScene({ onModelResolved }) {
       />
       <pointLight position={[-2, 1.5, -1]} intensity={7} color="#7f8594" />
       <group ref={animatedGroupRef}>
-        <Float
-          speed={1.25}
-          rotationIntensity={0.22}
-          floatIntensity={0.4}
-          floatingRange={[-0.18, 0.2]}
-        >
-          <LeatherModel />
-        </Float>
+        <Suspense fallback={<Loader />}>
+          <Float
+            speed={1.25}
+            rotationIntensity={0.22}
+            floatIntensity={0.4}
+            floatingRange={[-0.18, 0.2]}
+          >
+            <LeatherModel />
+          </Float>
+        </Suspense>
       </group>
+      <EffectComposer>
+        <Bloom luminanceThreshold={0.1} mipmapBlur intensity={0.3} radius={0.8} />
+      </EffectComposer>
     </>
   )
 }
